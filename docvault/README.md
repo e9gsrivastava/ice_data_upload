@@ -49,6 +49,7 @@ This web application allows users to upload zip files containing PDF documents, 
 7. To view the list of uploaded filenames via API, you can send a GET request to `http://localhost:8000/api/v1/file`. Note that you must have the necessary permissions and be authenticated to access this endpoint.
 
 ## System Dependencies
+<<<<<<< HEAD
  Note: Install JDK to run Tabula for PDF parsing
 
 ## Environment Variables
@@ -59,3 +60,6 @@ S3_BUCKET = ""
 Note: keep the variables name same, and Ensure to add the `.env` file to `.gitignore` to keep your sensitive information safe.
 
 
+=======
+## Note: Install JDK to run Tabula for PDF parsing
+>>>>>>> 0f1a3715029204e4fd01f6af42816edd4c5ee5ef
