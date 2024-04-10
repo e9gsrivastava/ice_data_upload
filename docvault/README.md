@@ -48,5 +48,5 @@ This web application allows users to upload zip files containing PDF documents, 
 6. Additionally, the filenames are saved in the database (SQLite), and you can view them in the admin panel.
 7. To view the list of uploaded filenames via API, you can send a GET request to `http://localhost:8000/api/v1/file`. Note that you must have the necessary permissions and be authenticated to access this endpoint.
 
-# System Dependencies
-# Note: Install JDK to run Tabula for PDF parsing
+## System Dependencies
+## Note: Install JDK to run Tabula for PDF parsing
