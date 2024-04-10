@@ -1,12 +1,23 @@
+"""
+script to upload ice data to aws s3 bucket 
+"""
+import os
 import argparse
 import gzip
-import os
 from concurrent.futures import ThreadPoolExecutor
-from io import BytesIO, StringIO
-
+from zipfile import ZipFile
 import pandas as pd
 import tabula
-from q3 import Q3
+from io import BytesIO, StringIO
+from doc_upload.shared import Q3
+from dotenv import load_dotenv
+import shutil
+
+load_dotenv()
+
+source = os.environ.get("SOURCE")
+s3_bucket = os.environ.get("S3_BUCKET")
+
 
 COLS = {
     0: "commodity_name",
@@ -26,11 +37,11 @@ COLS = {
     14: "spread_volume",
 }
 
-SOURCE = "IFED"
-S3_BUCKET = "enine-test"
-
 
 def transform_ice_data(filepath):
+    """
+    transforms ice data
+    """
     df_list = tabula.read_pdf(
         filepath, pages="all", lattice=True, pandas_options={"header": [0, 1]}
     )
@@ -46,19 +57,35 @@ def transform_ice_data(filepath):
 
 
 def listfiles(data_dir, date):
+    """
+    lit files
+    """
+
     filepaths = []
     for root, _, files in os.walk(data_dir):
         for file in files:
             if not file.startswith("."):
                 _date = file[4:-4]
                 if _date >= date:
-                    # print(_date)
                     filepaths.append(os.path.join(root, file))
     filepaths.sort()
     return filepaths
 
 
+# def write_locally(df, filepath):
+#     try:
+#         with gzip.open(filepath, "wt") as gz_file:
+#             df.to_csv(gz_file, index=False)
+#         print(f"Data saved locally: {filepath}")
+#     except Exception as e:
+#         print(f"Error occurred while writing to {filepath}: {str(e)}")
+#         traceback.print_exc()
+
+
 def write_to_s3(bucket_name, df, filename):
+    """
+    writes csv files to s3
+    """
     q3_client = Q3()
     buffer = StringIO()
     df.to_csv(buffer, index=False)
@@ -77,22 +104,27 @@ def write_to_s3(bucket_name, df, filename):
 
     return True
 
-def upload_ice_data_in_parallel(data_dir, bucket, prefix, date):
+
+def upload_ice_data_in_parallel(data_dir, date, output_dir, bucket_name, prefix):
+    """
+    processing files
+    """
     filepaths = listfiles(data_dir, date)
-    print(filepaths)
-    # return
-    q3_client = Q3()
+    print("Filepaths:", filepaths)
     counter = 1
     print(f"Length of the filepath: {len(filepaths)}")
 
     def process_file(filepath):
         nonlocal counter
-        print(f"Processing {counter} of {len(filepaths)}")
         filename = os.path.basename(filepath)
         exchange_code = filename.split("_")[0]
         year = filename.split("_")[1]
         month = filename.split("_")[2]
         day = filename.split("_")[3].replace(".pdf", "")
+
+        output_subdir = os.path.join(output_dir, exchange_code, year, month, day)
+        os.makedirs(output_subdir, exist_ok=True)
+
         df = transform_ice_data(filepath)
         filename = filename.replace("_", "").replace(exchange_code, "").replace("-", "")
         pdf_prefix = os.path.join(
@@ -112,30 +144,46 @@ def upload_ice_data_in_parallel(data_dir, bucket, prefix, date):
             f"{exchange_code}_{filename.replace('.pdf', '.csv.gz')}",
         )
 
-        print(f" csv prefix -- {csv_prefix}")
-        print(f"pdf prefix -- {pdf_prefix}")
-        # upload pdf to s3
-        q3_client.upload_file(bucket, pdf_prefix, filepath)
+        # write_locally(df, csv_prefix)
+        # write_locally(df, pdf_prefix)
+        # print(f"{exchange_code}_{filename.replace('.pdf', '.csv.gz')} saved locally")
 
-        # upload df to s3
-        write_to_s3(bucket, df, csv_prefix)
-
+        q3_client = Q3()
+        q3_client.upload_file(bucket_name, pdf_prefix, filepath)
+        write_to_s3(bucket_name, df, csv_prefix)
         print(
-            f"{exchange_code}_{filename.replace('.pdf', '.csv.gz') } uploaded to {bucket}"
+            f"{exchange_code}_{filename.replace('.pdf', '.csv.gz')} uploaded to {bucket_name}"
         )
+
         counter += 1
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         executor.map(process_file, filepaths)
+    return len(filepaths)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "startdate",
-        nargs="+",
-        help="start date to upload ice files eg: 2023_10_01",
-    )
-    args = parser.parse_args()
-    print(args.startdate[0])
-    upload_ice_data_in_parallel(os.getcwd(), S3_BUCKET, SOURCE, args.startdate[0])
+def extract_and_upload_ice_data(startdate, input_file):
+    """
+    calling all above func so that they can be used in views
+    """
+    current_dir = os.getcwd()
+    parent_dir = os.path.dirname(current_dir)
+
+    processed_dir = os.path.join(parent_dir, "data", "input")
+    if not os.path.exists(processed_dir):
+        os.makedirs(processed_dir)
+
+    output_dir = os.path.join(parent_dir, "data", "upload")
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    bucket_name = s3_bucket
+    prefix = source
+    num_of_files = 0
+    with ZipFile(input_file, "r") as zip_ref:
+        zip_ref.extractall(output_dir)
+        num_of_files = upload_ice_data_in_parallel(
+            processed_dir, startdate, output_dir, bucket_name, prefix
+        )
+    shutil.rmtree(output_dir)
+    return num_of_files
