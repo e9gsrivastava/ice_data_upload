@@ -77,7 +77,6 @@ def write_to_s3(bucket_name, df, filename):
 
     return True
 
-
 def upload_ice_data_in_parallel(data_dir, bucket, prefix, date):
     filepaths = listfiles(data_dir, date)
     print(filepaths)

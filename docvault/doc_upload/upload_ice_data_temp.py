@@ -55,14 +55,6 @@ def listfiles(data_dir, date):
     filepaths.sort()
     return filepaths
 
-
-
-# def write_locally(df, filepath):
-#     with gzip.open(filepath, "wt") as gz_file:
-#         df.to_csv(gz_file, index=False)
-#     print(f"Data saved locally: {filepath}")
-
-
 import traceback
 
 def write_locally(df, filepath):
@@ -75,9 +67,10 @@ def write_locally(df, filepath):
         traceback.print_exc()
 
 
-def upload_ice_data_locally(data_dir, date, output_dir):
+def upload_ice_data_in_parallel(data_dir, date, output_dir):
+    print(date,'dateeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')
     filepaths = listfiles(data_dir, date)
-    print(filepaths)
+    print("Filepaths:", filepaths)
     counter = 1
     print(f"Length of the filepath: {len(filepaths)}")
 
@@ -89,39 +82,39 @@ def upload_ice_data_locally(data_dir, date, output_dir):
         year = filename.split("_")[1]
         month = filename.split("_")[2]
         day = filename.split("_")[3].replace(".pdf", "")
+        
+        # Create directories if they don't exist
+        output_subdir = os.path.join(output_dir, exchange_code, year, month, day)
+        os.makedirs(output_subdir, exist_ok=True)
+
         df = transform_ice_data(filepath)
         filename = filename.replace("_", "").replace(exchange_code, "").replace("-", "")
         pdf_prefix = os.path.join(
-            output_dir,
-            exchange_code,
-            year,
-            month,
-            day,
+            output_subdir,
             f"{exchange_code}_{filename}",
         )
         csv_prefix = os.path.join(
-            output_dir,
-            exchange_code,
-            year,
-            month,
-            day,
+            output_subdir,
             f"{exchange_code}_{filename.replace('.pdf', '.csv.gz')}",
         )
 
-
         write_locally(df, csv_prefix)
+        write_locally(df, pdf_prefix)
         print(f"{exchange_code}_{filename.replace('.pdf', '.csv.gz')} saved locally")
         counter += 1
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         executor.map(process_file, filepaths)
+    return len(filepaths)
 
-def extract_and_upload_ice_data(input_file):
-    startdate = "2023_10_01"
+def extract_and_upload_ice_data(startdate,input_file):
+    print(startdate,'newwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww')
+    # startdate = "2023_10_01"
     processed_dir="/home/fox/developer/automate_upload/data/temp"
     output_dir = "/home/fox/developer/automate_upload/data/upload"
+    num_of_files=0
     with ZipFile(input_file, "r") as zip_ref:
         zip_ref.extractall(output_dir)
-        upload_ice_data_locally(processed_dir, startdate, output_dir)
-
+        num_of_files=upload_ice_data_in_parallel(processed_dir, startdate, output_dir)
+    return num_of_files
 

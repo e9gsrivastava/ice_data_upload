@@ -7,18 +7,9 @@ from django.urls import reverse, reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.views.generic import FormView
-from doc_upload.local import extract_and_upload_ice_data
+from doc_upload.upload_ice_data_temp import extract_and_upload_ice_data
 from .forms import UploadFileForm
-
-
-def get_files_in_zip(zip_file_path):
-    """
-    to get the number of files in the zip folder
-    """
-    with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
-        file_list = zip_ref.namelist()
-        return len(file_list)
-
+from .models import UploadedFile
 
 class FileUploadView(LoginRequiredMixin, FormView):
     """
@@ -38,28 +29,38 @@ class FileUploadView(LoginRequiredMixin, FormView):
         file_contents = uploaded_file.read()
 
         if zipfile.is_zipfile(io.BytesIO(file_contents)):
-            # Get the temporary path of the uploaded file
+            # Get the temporary path of the uploaded folder
             uploaded_file_path = uploaded_file.temporary_file_path()
 
             target_directory = "/home/fox/developer/automate_upload/data/temp"
             with zipfile.ZipFile(uploaded_file_path, "r") as zip_ref:
                 zip_ref.extractall(target_directory)
 
-            num_files = get_files_in_zip(uploaded_file_path)
+            # Get start date from dashboard
+            start_date = self.request.POST.get("start_date")
+            print(start_date,'444444444444444444444444444444444444444444444444444444444444444444444')
 
             # Call final function after file extraction
-            extract_and_upload_ice_data(uploaded_file_path)
+            num_files = extract_and_upload_ice_data(start_date,uploaded_file_path)
             message = f"{num_files} files have been uploaded by {user}."
+
+            # Save file to db
+            with zipfile.ZipFile(uploaded_file_path, "r") as zip_ref:
+                file_names = zip_ref.namelist()
+                for file_name in file_names:
+                    UploadedFile.objects.create(
+                        filename=file_name,
+                        user=user
+                    )
 
             return self.render_to_response(
                 self.get_context_data(form=form, message=message)
             )
-
+        
         message = "Uploaded file is not a zip file."
         return self.render_to_response(
             self.get_context_data(form=form, message=message)
         )
-
 
 class CustomLoginView(LoginView):
     """
