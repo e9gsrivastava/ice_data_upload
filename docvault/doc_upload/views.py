@@ -2,6 +2,7 @@
 views.py
 """
 import io
+import os
 import zipfile
 from django.urls import reverse, reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -36,8 +37,15 @@ class FileUploadView(LoginRequiredMixin, FormView):
 
         if zipfile.is_zipfile(io.BytesIO(file_contents)):
             uploaded_file_path = uploaded_file.temporary_file_path()
+            
 
-            target_directory = "/home/fox/developer/automate_upload/data/input"
+            current_dir = os.getcwd()
+            parent_dir = os.path.dirname(current_dir)
+
+            target_directory = os.path.join(parent_dir, "data", "input")
+            if not os.path.exists(target_directory):
+                os.makedirs(target_directory)
+
             with zipfile.ZipFile(uploaded_file_path, "r") as zip_ref:
                 zip_ref.extractall(target_directory)
 
@@ -76,3 +84,4 @@ class CustomLogoutView(LogoutView):
     """
 
     next_page = reverse_lazy("doc_upload:login")
+
