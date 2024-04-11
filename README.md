@@ -16,12 +16,13 @@ This web application allows users to upload zip files containing PDF documents, 
 
     ```bash
     git clone https://github.com/e9gsrivastava/ice_data_upload.git
+    git switch gs_v2
     ```
 
 2. Navigate to the project directory:
 
     ```bash
-    cd doc_vault
+    cd docvault
     ```
 
 3. Install the required dependencies:
